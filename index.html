@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lake Ray Hubbard Current Temp</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #0d1117; color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex; flex-direction: column; align-items: center; padding: 2rem; margin: 0;
+        }
+        .container { width: 100%; max-width: 500px; display: grid; gap: 1rem; }
+        .card {
+            background-color: #161b22; border: 1px solid #30363d; border-radius: 12px;
+            padding: 1.5rem; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+        .stat-box { background: #0d1117; padding: 1rem; border-radius: 8px; border: 1px solid #30363d; }
+        h1 { font-size: 1rem; color: #8b949e; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
+        .temp-main { font-size: 3.5rem; font-weight: bold; color: #3fb950; margin: 0.5rem 0; }
+        .temp-sub { font-size: 1.5rem; font-weight: bold; color: #58a6ff; }
+        .label { font-size: 0.75rem; color: #8b949e; margin-bottom: 4px; }
+        .status { font-size: 0.75rem; color: #484f58; margin-top: 10px; }
+        .chart-container { height: 250px; margin-top: 15px; }
+        .attribution { font-size: 1.25rem; color: #8b949e; margin-top: 2rem; text-align: center; }
+        .attribution a { color: #58a6ff; text-decoration: none; }
+        .attribution a:hover { text-decoration: underline; }
+        .weather-card {
+            background-color: #161b22; border: 1px solid #30363d; border-radius: 12px;
+            padding: 1rem; margin-top: 1rem; text-align: center;
+        }
+        .weather-card h2 { margin: 0 0 0.75rem 0; font-size: 1rem; color: #8b949e; }
+        .weather-card .weather-text { color: #c9d1d9; font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .weather-card .weather-detail { color: #58a6ff; font-weight: bold; }
+        .hourly-table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
+        .hourly-table th, .hourly-table td { border: 1px solid #30363d; padding: 0.35rem 0.5rem; font-size: 0.78rem; }
+        .hourly-table th { color: #8b949e; }
+        .hourly-table td { color: #c9d1d9; }
+        .hourly-table td .hourly-temp { color: #3fb950; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <h1>Lake Ray Hubbard Current Water Temp</h1>
+        <div id="temp-display" class="temp-main">--.-°F</div>
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="label">YESTERDAY AVG</div>
+                <div id="yesterday-avg" class="temp-sub">--.-°F</div>
+            </div>
+            <div class="stat-box">
+                <div class="label">TREND</div>
+                <div id="trend-val" class="temp-sub">--</div>
+            </div>
+        </div>
+        <div id="last-update" class="status">Connecting...</div>
+        
+        <div class="chart-container">
+            <canvas id="tempChart"></canvas>
+        </div>
+    </div>
+
+    <div class="weather-card" id="weather-card">
+        <h2>Lake Ray Hubbard Weather for <span id="weather-date">--</span></h2>
+        <div id="weather-forecast" class="weather-text">Loading forecast...</div>
+        <div id="weather-wind" class="weather-detail">Wind: --</div>
+    </div>
+</div>
+
+<div class="attribution">
+    Thank you to <a href="https://lucidnetworkconsulting.com/" target="_blank">Lucid Network Consulting</a> for providing hosting
+    <br><br>
+    <a href="https://www.rockwall.com/event_cbl.asp" target="_blank">Concerts by the Lake</a>
+</div>
+
+<script>
+    const aioKey = 'aio_ohwY95Wc8uRGPj2haVnG7CyBcRmL';
+    const baseUrl = 'https://io.adafruit.com/api/v2/Manzacoty/feeds/dock-temperature/data';
+    let tempChart;
+
+    async function fetchData() {
+        try {
+            // fetch 5 days of data and compute daily averages
+            const now = new Date();
+            const fiveDaysAgo = new Date(now);
+            fiveDaysAgo.setDate(now.getDate() - 4);
+            fiveDaysAgo.setHours(0, 0, 0, 0);
+
+            const recentRes = await fetch(`${baseUrl}?start_time=${fiveDaysAgo.toISOString()}&limit=1000`, { headers: { 'X-AIO-Key': aioKey } });
+            const recentData = await recentRes.json();
+            if (!recentData.length) return;
+
+            const latest = recentData[0];
+            const currentTemp = parseFloat(latest.value).toFixed(1);
+            document.getElementById('temp-display').innerText = `${currentTemp}°F`;
+            document.getElementById('last-update').innerText = `Last Update: ${new Date(latest.created_at).toLocaleString([], {month: 'numeric', day: 'numeric', hour: '2-digit', minute:'2-digit'})}`;
+
+            const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
+            const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
+
+            const yesterdayRes = await fetch(`${baseUrl}?start_time=${startOfYesterday.toISOString()}&end_time=${endOfYesterday.toISOString()}&limit=1000`, {
+                headers: { 'X-AIO-Key': aioKey }
+            });
+            const yesterdayData = await yesterdayRes.json();
+
+            if (yesterdayData.length > 0) {
+                const sum = yesterdayData.reduce((acc, d) => acc + parseFloat(d.value), 0);
+                const avg = (sum / yesterdayData.length).toFixed(1);
+                document.getElementById('yesterday-avg').innerText = `${avg}°F`;
+
+                const diff = (currentTemp - avg).toFixed(1);
+                const trendEl = document.getElementById('trend-val');
+                trendEl.innerText = diff > 0 ? `+${diff}°` : `${diff}°`;
+                trendEl.style.color = diff < 0 ? "#f85149" : "#3fb950";
+            }
+
+            const groupedByDate = {};
+            recentData.forEach(d => {
+                const dt = new Date(d.created_at);
+                const key = `${dt.getFullYear()}-${(dt.getMonth()+1).toString().padStart(2,'0')}-${dt.getDate().toString().padStart(2,'0')}`;
+                const value = parseFloat(d.value);
+                if (!Number.isNaN(value)) {
+                    if (!groupedByDate[key]) groupedByDate[key] = {sum: 0, count: 0};
+                    groupedByDate[key].sum += value;
+                    groupedByDate[key].count += 1;
+                }
+            });
+
+            const dateLabels = [];
+            const dateValues = [];
+            const allDates = [];
+
+            for (let i = 0; i < 5; i++) {
+                const day = new Date(fiveDaysAgo);
+                day.setDate(fiveDaysAgo.getDate() + i);
+                const key = `${day.getFullYear()}-${(day.getMonth()+1).toString().padStart(2,'0')}-${day.getDate().toString().padStart(2,'0')}`;
+                allDates.push(key);
+            }
+
+            allDates.forEach(key => {
+                const parts = key.split('-');
+                const month = Number(parts[1]);
+                const day = Number(parts[2]);
+
+                dateLabels.push(`${month}/${day}`);
+                if (groupedByDate[key] && groupedByDate[key].count > 0) {
+                    dateValues.push(Number((groupedByDate[key].sum / groupedByDate[key].count).toFixed(1)));
+                } else {
+                    dateValues.push(null);
+                }
+            });
+
+            const labels = dateLabels;
+            const values = dateValues;
+
+            if (tempChart) {
+                tempChart.data.labels = labels;
+                tempChart.data.datasets[0].data = values;
+                tempChart.update();
+            } else {
+                renderChart(labels, values);
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    function renderChart(labels, values) {
+        const ctx = document.getElementById('tempChart').getContext('2d');
+        tempChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values, borderColor: '#58a6ff', backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                    fill: true, tension: 0.4, pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+                    x: { 
+                        grid: { display: false }, 
+                        ticks: { 
+                            color: '#8b949e',
+                            maxTicksLimit: 4, // Keeps the axis clean on mobile
+                            maxRotation: 0
+                        } 
+                    }
+                }
+            }
+        });
+    }
+
+    async function fetchZipLatLon(zip) {
+        const url = `https://api.zippopotam.us/us/${zip}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Zip lookup failed');
+        const data = await res.json();
+        const place = data.places && data.places[0];
+        return { lat: parseFloat(place.latitude), lon: parseFloat(place.longitude) };
+    }
+
+    function degreesToCompass(deg) {
+        if (deg === null || deg === undefined || Number.isNaN(deg)) return '--';
+        const sectors = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+        const index = Math.floor(((deg + 11.25) % 360) / 22.5);
+        return sectors[index];
+    }
+
+    function formatWind(direction, speed) {
+        if (!direction || !speed) return '--';
+        return `${direction} at ${speed}`;
+    }
+
+    function setWeatherDate() {
+        const today = new Date();
+        document.getElementById('weather-date').innerText = today.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+
+    async function fetchWeather() {
+        try {
+            setWeatherDate();
+            const { lat, lon } = await fetchZipLatLon('75032');
+            const pointData = await fetch(`https://api.weather.gov/points/${lat},${lon}`).then(r => r.json());
+            const forecastUrl = pointData.properties.forecast;
+            const hourlyUrl = pointData.properties.forecastHourly;
+            const stationUrl = pointData.properties.observationStations;
+
+            const [forecastData, hourlyData, stationsData] = await Promise.all([
+                fetch(forecastUrl).then(r => r.json()),
+                fetch(hourlyUrl).then(r => r.json()),
+                fetch(stationUrl).then(r => r.json())
+            ]);
+
+            const now = new Date();
+            const start = new Date(now);
+            start.setHours(6, 0, 0, 0);
+            const end = new Date(now);
+            end.setHours(21, 0, 0, 0);
+
+            const hourlyPeriods = (hourlyData.properties.periods || []).filter(period => {
+                const dt = new Date(period.startTime);
+                return dt >= start && dt <= end;
+            });
+
+            if (hourlyPeriods.length > 0) {
+                const rows = hourlyPeriods.map(period => {
+                    const timeLabel = new Date(period.startTime).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+                    const temp = `${period.temperature}${period.temperatureUnit}`;
+                    const windSpeed = period.windSpeed || '--';
+                    const windDir = period.windDirection || '--';
+                    const windLabel = windDir !== '--' && !windDir.includes('°') ? windDir : '--';
+                    const precip = period.probabilityOfPrecipitation && period.probabilityOfPrecipitation.value != null
+                        ? `${period.probabilityOfPrecipitation.value}%` : '--';
+                    return `<tr><td>${timeLabel}</td><td class="hourly-temp">${temp}</td><td>${windLabel} ${windSpeed}</td><td>${precip}</td></tr>`;
+                }).join('');
+
+                document.getElementById('weather-forecast').innerHTML = 
+                    `<table class="hourly-table"><thead><tr><th>Time</th><th>Temp</th><th>Wind</th><th>Rain</th></tr></thead><tbody>${rows}</tbody></table>`;
+            } else {
+                document.getElementById('weather-forecast').innerText = 'Hourly data unavailable';
+            }
+
+            const nearestStationId = stationsData.features && stationsData.features[0] && stationsData.features[0].properties.stationIdentifier;
+            if (nearestStationId) {
+                const obsData = await fetch(`https://api.weather.gov/stations/${nearestStationId}/observations/latest`).then(r => r.json());
+                const windSpeed = obsData.properties.windSpeed && obsData.properties.windSpeed.value != null ? `${Math.round(obsData.properties.windSpeed.value)} mph` : '--';
+                const windDirDegrees = obsData.properties.windDirection && obsData.properties.windDirection.value != null ? obsData.properties.windDirection.value : null;
+                const windDirName = windDirDegrees !== null ? degreesToCompass(windDirDegrees) : '--';
+                document.getElementById('weather-wind').innerText = `Wind: ${formatWind(windDirName, windSpeed)}`;
+            } else {
+                document.getElementById('weather-wind').innerText = 'Wind: unavailable';
+            }
+        } catch (error) {
+            console.error('Weather fetch error', error);
+            document.getElementById('weather-forecast').innerText = 'Unable to load forecast';
+            document.getElementById('weather-wind').innerText = 'Wind: unavailable';
+        }
+    }
+
+    fetchData();
+    fetchWeather();
+    setInterval(fetchData, 300000);
+    setInterval(fetchWeather, 300000);
+</script>
+
+</body>
+</html>
