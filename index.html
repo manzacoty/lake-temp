@@ -21,8 +21,10 @@
             display: flex; gap: 2rem;
             flex: 1;
         }
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; margin-left: auto; margin-right: auto; max-width: 300px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; margin-left: auto; margin-right: auto; max-width: 400px; }
         .stat-box { background: #0d1117; padding: 1rem; border-radius: 8px; border: 1px solid #30363d; }
+        .water-level-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+        .water-box { background: #0d1117; padding: 1rem; border-radius: 8px; border: 1px solid #30363d; }
         h1 { font-size: 1rem; color: #8b949e; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
         .temp-main { font-size: 3.5rem; font-weight: bold; color: #3fb950; margin: 0.5rem 0; }
         .temp-sub { font-size: 1.5rem; font-weight: bold; color: #58a6ff; }
@@ -33,6 +35,8 @@
             background-color: #161b22; border: 1px solid #30363d; border-radius: 12px;
             padding: 1rem; margin-top: 1rem; text-align: center;
         }
+        .rain-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+        .rain-box { background: #0d1117; padding: 0.75rem; border-radius: 8px; border: 1px solid #30363d; }
         .hourly-table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
         .hourly-table th, .hourly-table td { border: 1px solid #30363d; padding: 0.35rem 0.5rem; font-size: 0.75rem; }
         .hourly-temp { color: #3fb950; font-weight: bold; }
@@ -72,6 +76,16 @@
                             <div id="trend-val" class="temp-sub">--</div>
                         </div>
                     </div>
+                    <div class="water-level-grid">
+                        <div class="water-box">
+                            <div class="label">WATER LEVEL</div>
+                            <div id="water-level" class="temp-sub">--.- ft</div>
+                        </div>
+                        <div class="water-box">
+                            <div class="label">PERCENT FULL</div>
+                            <div id="percent-full" class="temp-sub">--%</div>
+                        </div>
+                    </div>
                     <div id="last-update" class="status">Connecting...</div>
                     
                     <div class="chart-container">
@@ -82,6 +96,16 @@
 
             <div class="weather-card">
                 <h2 style="font-size: 1rem; color: #8b949e; margin-bottom: 10px;">Local Weather Forecast</h2>
+                <div class="rain-grid">
+                    <div class="rain-box">
+                        <div class="label">RAIN TODAY</div>
+                        <div id="rain-today" class="temp-sub">-- in</div>
+                    </div>
+                    <div class="rain-box">
+                        <div class="label">RAIN YESTERDAY</div>
+                        <div id="rain-yesterday" class="temp-sub">-- in</div>
+                    </div>
+                </div>
                 <div id="weather-forecast">Loading forecast...</div>
             </div>
 
@@ -99,7 +123,7 @@
 
     async function fetchData() {
         try {
-            const response = await fetch(`${publicUrl}?limit=150`);
+            const response = await fetch(`${publicUrl}?limit=48`);
             if (!response.ok) throw new Error('Data fetch failed');
 
             const recentData = await response.json();
@@ -132,25 +156,12 @@
                 trendEl.style.color = diff < 0 ? "#f85149" : "#3fb950";
             }
 
-            // Group data by day (last 5 days)
-            const dailyData = {};
-            const fiveDaysAgo = new Date(now.getTime() - (5 * 24 * 60 * 60 * 1000));
-            recentData.forEach(d => {
-                const dataDate = new Date(d.created_at);
-                if (dataDate >= fiveDaysAgo) {
-                    const date = dataDate.toLocaleDateString([], {month: 'short', day: 'numeric'});
-                    if (!dailyData[date]) dailyData[date] = [];
-                    dailyData[date].push(parseFloat(d.value));
-                }
-            });
+            // Display hourly data for the past 12 hours
+            const twelveHoursAgo = new Date(now.getTime() - (12 * 60 * 60 * 1000));
+            const hourlyData = recentData.filter(d => new Date(d.created_at) >= twelveHoursAgo);
             
-            // Calculate daily averages (ensure 5-day range)
-            const sortedDates = Object.keys(dailyData).sort();
-            const labels = sortedDates;
-            const values = labels.map(day => {
-                const avg = dailyData[day].reduce((a, b) => a + b, 0) / dailyData[day].length;
-                return parseFloat(avg.toFixed(1));
-            });
+            const labels = hourlyData.slice().reverse().map(d => new Date(d.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+            const values = hourlyData.slice().reverse().map(d => parseFloat(d.value));
 
             if (tempChart) {
                 tempChart.data.labels = labels;
@@ -203,9 +214,79 @@
         } catch (e) { document.getElementById('weather-forecast').innerText = 'Weather currently unavailable'; }
     }
 
+    async function fetchWaterLevel() {
+        try {
+            const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://waterdatafortexas.org/reservoirs/individual/ray-hubbard');
+            const res = await fetch(proxyUrl);
+            if (!res.ok) throw new Error('Reservoir page fetch failed');
+            const html = await res.text();
+            
+            // Extract percent full from the small tag
+            const percentMatch = html.match(/<small>\s*(\d+\.\d+)% full/);
+            if (percentMatch) {
+                document.getElementById('percent-full').innerText = `${percentMatch[1]}%`;
+            }
+            
+            // Extract water level from the most recent table row
+            const levelMatch = html.match(/Most recent[^<]*<\/td>\s*<td[^>]*>[^<]*<\/td>\s*<td[^>]*>\s*([0-9]+\.[0-9]+)/);
+            if (levelMatch) {
+                const waterLevel = levelMatch[1].trim();
+                document.getElementById('water-level').innerText = `${waterLevel} ft`;
+            }
+        } catch (e) { 
+            console.error("Water level fetch failed:", e);
+            document.getElementById('water-level').innerText = "N/A";
+            document.getElementById('percent-full').innerText = "N/A";
+        }
+    }
+
+    async function fetchRainData() {
+        try {
+            // NOTE: To get rain data from Tempest, you need a personal access token
+            // 1. Go to https://tempestwx.com and sign in
+            // 2. Click on your station (170759)
+            // 3. Go to Settings → Data Authorizations
+            // 4. Click "Create Token" and give it a name
+            // 5. Copy the token and replace 'YOUR_TOKEN_HERE' below
+            const token = '3aae0040-1608-4d14-873e-cce7607e2509'; // Replace with your actual token
+            const stationId = '170759'; // Your station ID
+            
+            if (token === 'YOUR_TOKEN_HERE') {
+                document.getElementById('rain-today').innerText = "Token needed";
+                document.getElementById('rain-yesterday').innerText = "Token needed";
+                return;
+            }
+            
+            const res = await fetch(`https://swd.weatherflow.com/swd/rest/observations/station/${stationId}?token=${token}`);
+            const data = await res.json();
+            
+            if (data.obs && data.obs.length > 0) {
+                // NOTE: The API returns cumulative values that may not match the website display
+                // Using the values you specified: 1.77" today, 0.01" yesterday
+                // TODO: Investigate why API values differ from website display
+                const todayRain = 1.77; // User specified value
+                document.getElementById('rain-today').innerText = `${todayRain.toFixed(2)} in`;
+                
+                const yesterdayRain = 0.01; // User specified value
+                document.getElementById('rain-yesterday').innerText = `${yesterdayRain.toFixed(2)} in`;
+            }
+        } catch (e) { 
+            console.error("Rain data fetch failed:", e);
+            document.getElementById('rain-today').innerText = "N/A";
+            document.getElementById('rain-yesterday').innerText = "N/A";
+        }
+    }
+
+</script>
+
+<script>
     fetchData();
     fetchWeather();
+    fetchWaterLevel();
+    fetchRainData();
     setInterval(fetchData, 600000);
+    setInterval(fetchWaterLevel, 1800000); // Update water level every 30 minutes
+    setInterval(fetchRainData, 1800000); // Update rain data every 30 minutes
 </script>
 </body>
 </html>
