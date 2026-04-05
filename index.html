@@ -235,6 +235,8 @@
                 }
             }
 
+            const fullLevel = 435.50; // Base full level
+
             if (!html) {
                 console.warn('Could not load reservoir data from any proxy; trying USGS fallback');
                 const usgsRes = await fetch('https://waterservices.usgs.gov/nwis/iv/?format=json&sites=08061550&parameterCd=62614');
@@ -244,7 +246,8 @@
                     if (point?.value) {
                         const waterLevel = parseFloat(point.value).toFixed(2);
                         document.getElementById('water-level').innerText = `${waterLevel} ft`;
-                        document.getElementById('percent-full').innerText = 'N/A';
+                        const percentFull = ((waterLevel / fullLevel) * 100).toFixed(1);
+                        document.getElementById('percent-full').innerText = `${percentFull}%`;
                         return;
                     }
                 }
@@ -255,32 +258,24 @@
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
 
-                const smallEl = doc.querySelector('h2 small');
-                if (smallEl) {
-                    const percentMatch = smallEl.textContent.trim().match(/([\d.]+)%\s*full/);
-                    if (percentMatch) {
-                        document.getElementById('percent-full').innerText = `${percentMatch[1]}%`;
-                    }
-                }
-
                 const recentRow = Array.from(doc.querySelectorAll('tbody tr')).find(row => row.textContent.includes('Most recent'));
                 if (recentRow) {
                     const cells = recentRow.querySelectorAll('td');
                     if (cells.length >= 3) {
                         const waterLevel = cells[2].textContent.trim();
                         document.getElementById('water-level').innerText = `${waterLevel} ft`;
+                        const percentFull = ((parseFloat(waterLevel) / fullLevel) * 100).toFixed(1);
+                        document.getElementById('percent-full').innerText = `${percentFull}%`;
                     }
                 }
             } catch (e) {
                 console.warn('Reservoir HTML parse failed, falling back to regex', e);
-                const percentMatch = html.match(/<small>\s*([\d.]+)% full/);
-                if (percentMatch) {
-                    document.getElementById('percent-full').innerText = `${percentMatch[1]}%`;
-                }
-
                 const levelMatch = html.match(/<tr>\s*<td>\s*Most recent\s*<\/td>\s*<td>\s*[^<]+<\/td>\s*<td>\s*([0-9]+\.[0-9]+)/);
                 if (levelMatch) {
-                    document.getElementById('water-level').innerText = `${levelMatch[1]} ft`;
+                    const waterLevel = levelMatch[1];
+                    document.getElementById('water-level').innerText = `${waterLevel} ft`;
+                    const percentFull = ((parseFloat(waterLevel) / fullLevel) * 100).toFixed(1);
+                    document.getElementById('percent-full').innerText = `${percentFull}%`;
                 }
             }
         } catch (e) {
