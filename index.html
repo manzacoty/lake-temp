@@ -78,7 +78,7 @@
                     </div>
                     <div class="water-level-grid">
                         <div class="water-box">
-                            <div class="label">WATER LEVEL</div>
+                            <div class="label">MEAN WATER LEVEL</div>
                             <div id="water-level" class="temp-sub">--.- ft</div>
                         </div>
                         <div class="water-box">
@@ -216,24 +216,74 @@
 
     async function fetchWaterLevel() {
         try {
-            const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://waterdatafortexas.org/reservoirs/individual/ray-hubbard');
-            const res = await fetch(proxyUrl);
-            if (!res.ok) throw new Error('Reservoir page fetch failed');
-            const html = await res.text();
-            
-            // Extract percent full from the small tag
-            const percentMatch = html.match(/<small>\s*(\d+\.\d+)% full/);
-            if (percentMatch) {
-                document.getElementById('percent-full').innerText = `${percentMatch[1]}%`;
+            const targetUrl = 'https://waterdatafortexas.org/reservoirs/individual/ray-hubbard';
+            const proxies = [
+                'https://api.allorigins.win/raw?url=',
+                'https://api.codetabs.com/v1/proxy?quest=',
+                'https://thingproxy.freeboard.io/fetch/'
+            ];
+            let html = null;
+
+            for (const proxy of proxies) {
+                try {
+                    const response = await fetch(proxy + encodeURIComponent(targetUrl));
+                    if (!response.ok) continue;
+                    html = await response.text();
+                    if (html && html.includes('Lake Ray Hubbard')) break;
+                } catch (e) {
+                    console.warn('Reservoir proxy fetch failed for', proxy, e);
+                }
             }
-            
-            // Extract water level from the most recent table row
-            const levelMatch = html.match(/Most recent[^<]*<\/td>\s*<td[^>]*>[^<]*<\/td>\s*<td[^>]*>\s*([0-9]+\.[0-9]+)/);
-            if (levelMatch) {
-                const waterLevel = levelMatch[1].trim();
-                document.getElementById('water-level').innerText = `${waterLevel} ft`;
+
+            if (!html) {
+                console.warn('Could not load reservoir data from any proxy; trying USGS fallback');
+                const usgsRes = await fetch('https://waterservices.usgs.gov/nwis/iv/?format=json&sites=08061550&parameterCd=62614');
+                if (usgsRes.ok) {
+                    const usgsData = await usgsRes.json();
+                    const point = usgsData?.value?.timeSeries?.[0]?.values?.[0]?.value?.[0];
+                    if (point?.value) {
+                        const waterLevel = parseFloat(point.value).toFixed(2);
+                        document.getElementById('water-level').innerText = `${waterLevel} ft`;
+                        document.getElementById('percent-full').innerText = 'N/A';
+                        return;
+                    }
+                }
+                throw new Error('Could not load reservoir data from any proxy or USGS fallback');
             }
-        } catch (e) { 
+
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+
+                const smallEl = doc.querySelector('h2 small');
+                if (smallEl) {
+                    const percentMatch = smallEl.textContent.trim().match(/([\d.]+)%\s*full/);
+                    if (percentMatch) {
+                        document.getElementById('percent-full').innerText = `${percentMatch[1]}%`;
+                    }
+                }
+
+                const recentRow = Array.from(doc.querySelectorAll('tbody tr')).find(row => row.textContent.includes('Most recent'));
+                if (recentRow) {
+                    const cells = recentRow.querySelectorAll('td');
+                    if (cells.length >= 3) {
+                        const waterLevel = cells[2].textContent.trim();
+                        document.getElementById('water-level').innerText = `${waterLevel} ft`;
+                    }
+                }
+            } catch (e) {
+                console.warn('Reservoir HTML parse failed, falling back to regex', e);
+                const percentMatch = html.match(/<small>\s*([\d.]+)% full/);
+                if (percentMatch) {
+                    document.getElementById('percent-full').innerText = `${percentMatch[1]}%`;
+                }
+
+                const levelMatch = html.match(/<tr>\s*<td>\s*Most recent\s*<\/td>\s*<td>\s*[^<]+<\/td>\s*<td>\s*([0-9]+\.[0-9]+)/);
+                if (levelMatch) {
+                    document.getElementById('water-level').innerText = `${levelMatch[1]} ft`;
+                }
+            }
+        } catch (e) {
             console.error("Water level fetch failed:", e);
             document.getElementById('water-level').innerText = "N/A";
             document.getElementById('percent-full').innerText = "N/A";
@@ -261,13 +311,11 @@
             const data = await res.json();
             
             if (data.obs && data.obs.length > 0) {
-                // NOTE: The API returns cumulative values that may not match the website display
-                // Using the values you specified: 1.77" today, 0.01" yesterday
-                // TODO: Investigate why API values differ from website display
-                const todayRain = 1.77; // User specified value
+                const obs = data.obs[0];
+                // Convert mm to inches (1 inch = 25.4 mm)
+                const todayRain = (obs.precip_accum_local_day || 0) / 25.4;
+                const yesterdayRain = (obs.precip_accum_local_yesterday_final || 0) / 25.4;
                 document.getElementById('rain-today').innerText = `${todayRain.toFixed(2)} in`;
-                
-                const yesterdayRain = 0.01; // User specified value
                 document.getElementById('rain-yesterday').innerText = `${yesterdayRain.toFixed(2)} in`;
             }
         } catch (e) { 
