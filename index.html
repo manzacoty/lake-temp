@@ -95,7 +95,17 @@
             </div>
 
             <div class="weather-card">
-                <h2 style="font-size: 1rem; color: #8b949e; margin-bottom: 10px;">Local Weather Forecast</h2>
+                <h2 style="font-size: 1rem; color: #8b949e; margin-bottom: 10px;">Local Weather</h2>
+                <div class="rain-grid">
+                    <div class="rain-box">
+                        <div class="label">AIR TEMP</div>
+                        <div id="air-temp" class="temp-sub">-- °F</div>
+                    </div>
+                    <div class="rain-box">
+                        <div class="label">HUMIDITY</div>
+                        <div id="humidity" class="temp-sub">-- %</div>
+                    </div>
+                </div>
                 <div class="rain-grid">
                     <div class="rain-box">
                         <div class="label">RAIN TODAY</div>
@@ -287,18 +297,14 @@
 
     async function fetchRainData() {
         try {
-            // NOTE: To get rain data from Tempest, you need a personal access token
-            // 1. Go to https://tempestwx.com and sign in
-            // 2. Click on your station (170759)
-            // 3. Go to Settings → Data Authorizations
-            // 4. Click "Create Token" and give it a name
-            // 5. Copy the token and replace 'YOUR_TOKEN_HERE' below
-            const token = '3aae0040-1608-4d14-873e-cce7607e2509'; // Replace with your actual token
-            const stationId = '170759'; // Your station ID
+            const token = '3aae0040-1608-4d14-873e-cce7607e2509';
+            const stationId = '170759';
             
             if (token === 'YOUR_TOKEN_HERE') {
                 document.getElementById('rain-today').innerText = "Token needed";
                 document.getElementById('rain-yesterday').innerText = "Token needed";
+                document.getElementById('air-temp').innerText = "Token needed";
+                document.getElementById('humidity').innerText = "Token needed";
                 return;
             }
             
@@ -307,14 +313,26 @@
             
             if (data.obs && data.obs.length > 0) {
                 const obs = data.obs[0];
-                // Convert mm to inches (1 inch = 25.4 mm)
+                
+                // Air temperature: convert Celsius to Fahrenheit
+                const airTempC = obs.air_temperature || 0;
+                const airTempF = (airTempC * 9/5) + 32;
+                document.getElementById('air-temp').innerText = `${airTempF.toFixed(1)} °F`;
+                
+                // Humidity
+                const humidity = obs.relative_humidity || 0;
+                document.getElementById('humidity').innerText = `${humidity} %`;
+                
+                // Rain data: Convert mm to inches (1 inch = 25.4 mm)
                 const todayRain = (obs.precip_accum_local_day || 0) / 25.4;
                 const yesterdayRain = (obs.precip_accum_local_yesterday_final || 0) / 25.4;
                 document.getElementById('rain-today').innerText = `${todayRain.toFixed(2)} in`;
                 document.getElementById('rain-yesterday').innerText = `${yesterdayRain.toFixed(2)} in`;
             }
         } catch (e) { 
-            console.error("Rain data fetch failed:", e);
+            console.error("Tempest data fetch failed:", e);
+            document.getElementById('air-temp').innerText = "N/A";
+            document.getElementById('humidity').innerText = "N/A";
             document.getElementById('rain-today').innerText = "N/A";
             document.getElementById('rain-yesterday').innerText = "N/A";
         }
