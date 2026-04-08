@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Macie’s Dock Services</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: linear-gradient(180deg, #0d1117 0%, #111827 100%);
+            color: #e5e7eb;
+        }
+        .page {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+        .hero {
+            text-align: center;
+            padding: 3rem 1rem;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 18px;
+            box-shadow: 0 15px 45px rgba(0,0,0,0.25);
+        }
+        .hero h1 {
+            margin: 0;
+            font-size: clamp(2.4rem, 4vw, 4rem);
+            letter-spacing: -0.04em;
+            color: #f8fafc;
+        }
+        .hero p {
+            margin: 1rem auto 0;
+            max-width: 680px;
+            line-height: 1.8;
+            color: #cbd5e1;
+            font-size: 1.05rem;
+        }
+        .hero-image {
+            width: 160px;
+            height: 160px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 4px solid rgba(56, 189, 248, 0.4);
+            margin: 1.5rem auto 0;
+            display: block;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+        }
+        .badge {
+            display: inline-flex;
+            padding: 0.65rem 1rem;
+            margin-top: 1.5rem;
+            background: rgba(56, 189, 248, 0.15);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 999px;
+            color: #bae6fd;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-size: 0.78rem;
+        }
+        .services {
+            display: grid;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        .service-card {
+            padding: 1.5rem;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .service-card h2 {
+            margin: 0 0 0.75rem;
+            font-size: 1.4rem;
+            color: #f8fafc;
+        }
+        .service-card ul {
+            margin: 0;
+            padding-left: 1.25rem;
+            color: #cbd5e1;
+            line-height: 1.8;
+        }
+        .service-card li {
+            margin-bottom: 0.75rem;
+        }
+        .cta {
+            margin-top: 2.5rem;
+            padding: 1.75rem;
+            border-radius: 18px;
+            background: rgba(14, 165, 233, 0.08);
+            border: 1px solid rgba(56, 189, 248, 0.18);
+            text-align: center;
+        }
+        .cta h3 {
+            margin: 0 0 0.75rem;
+            font-size: 1.6rem;
+            color: #f8fafc;
+        }
+        .cta p {
+            margin: 0 0 1.5rem;
+            color: #cbd5e1;
+            line-height: 1.8;
+        }
+        .button {
+            display: inline-block;
+            padding: 1rem 1.75rem;
+            border-radius: 999px;
+            background: #38bdf8;
+            color: #0f172a;
+            font-weight: 700;
+            text-decoration: none;
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            background: #22d3ee;
+        }
+        .footer {
+            margin: 3rem 0 0;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.95rem;
+        }
+        @media (min-width: 640px) {
+            .services {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <section class="hero">
+            <div class="badge">Dock Services at Chandler's Landing Marina</div>
+            <h1>Macie’s Dock Services</h1>
+            <img class="hero-image" src="IMG_6307.jpg" alt="Macie providing dock services" />
+            <p>Professional dock support from a friendly local teen. Macie offers reliable dock cleanup, cooler stocking, tube inflation, trash pickup, boat wipe down, dishes, counter wipe down, and more — only at Chandler's Landing Marina.</p>
+        </section>
+
+        <section class="services">
+            <div class="service-card">
+                <h2>What Macie Can Do</h2>
+                <ul>
+                    <li>Dock cleanup and tidying</li>
+                    <li>Air up tubes and float gear</li>
+                    <li>Stock coolers with ice</li>
+                    <li>Trash pickup and recycling</li>
+                </ul>
+            </div>
+            <div class="service-card">
+                <h2>Extras She Handles</h2>
+                <ul>
+                    <li>Wipe down countertops</li>
+                    <li>Wash dishes</li>
+                    <li>Boat wipe down</li>
+                    <li>Friendly support for dock guests</li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="cta">
+            <h3>Book Macie Today</h3>
+            <p>Perfect for families and boats at Chandler’s Landing Marina who want a clean, ready-to-enjoy dock experience.</p>
+            <a class="button" href="tel:9729651311">Call or Text 972-965-1311</a>
+        </section>
+
+        <div class="footer">Serving Chandler's Landing Marina only. Friendly, dependable service from Macie, age 13.</div>
+    </div>
+</body>
+</html>
