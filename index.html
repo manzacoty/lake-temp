@@ -92,7 +92,7 @@
                         </div>
                     </div>
                     <div id="last-update" class="status">Connecting...</div>
-                    
+                     
                     <div class="chart-container">
                         <canvas id="tempChart"></canvas>
                     </div>
@@ -160,7 +160,7 @@
             // Fetching data for the last 5 days
             const rangeRes = await fetch(`${publicUrl}?start_time=${startDate.toISOString()}&end_time=${endDate.toISOString()}`);
             const fiveDayData = await rangeRes.json();
-            
+             
             if (fiveDayData.length > 0) {
                 const sum = fiveDayData.reduce((acc, d) => acc + parseFloat(d.value), 0);
                 const avg = (sum / fiveDayData.length).toFixed(1);
@@ -174,7 +174,7 @@
             // Display hourly data for the past 12 hours
             const twelveHoursAgo = new Date(now.getTime() - (12 * 60 * 60 * 1000));
             const hourlyData = recentData.filter(d => new Date(d.created_at) >= twelveHoursAgo);
-            
+             
             const labels = hourlyData.slice().reverse().map(d => new Date(d.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
             const values = hourlyData.slice().reverse().map(d => parseFloat(d.value));
 
@@ -304,7 +304,7 @@
         try {
             const token = '3aae0040-1608-4d14-873e-cce7607e2509';
             const stationId = '170759';
-            
+             
             if (token === 'YOUR_TOKEN_HERE') {
                 document.getElementById('rain-today').innerText = "Token needed";
                 document.getElementById('rain-yesterday').innerText = "Token needed";
@@ -312,22 +312,22 @@
                 document.getElementById('humidity').innerText = "Token needed";
                 return;
             }
-            
+             
             const res = await fetch(`https://swd.weatherflow.com/swd/rest/observations/station/${stationId}?token=${token}`);
             const data = await res.json();
-            
+             
             if (data.obs && data.obs.length > 0) {
                 const obs = data.obs[0];
-                
+                 
                 // Air temperature: convert Celsius to Fahrenheit
                 const airTempC = obs.air_temperature || 0;
                 const airTempF = (airTempC * 9/5) + 32;
                 document.getElementById('air-temp').innerText = `${airTempF.toFixed(1)} °F`;
-                
+                 
                 // Humidity
                 const humidity = obs.relative_humidity || 0;
                 document.getElementById('humidity').innerText = `${humidity} %`;
-                
+                 
                 // Rain data: Convert mm to inches (1 inch = 25.4 mm)
                 const todayRain = (obs.precip_accum_local_day || 0) / 25.4;
                 const yesterdayRain = (obs.precip_accum_local_yesterday_final || 0) / 25.4;
@@ -343,16 +343,16 @@
         }
     }
 
-</script>
-
-<script>
+    // Run immediately on page load
     fetchData();
     fetchWeather();
     fetchWaterLevel();
     fetchRainData();
-    setInterval(fetchData, 600000);
-    setInterval(fetchWaterLevel, 1800000); // Update water level every 30 minutes
-    setInterval(fetchRainData, 1800000); // Update rain data every 30 minutes
+
+    // Set intervals for automatic refreshes
+    setInterval(fetchData, 600000); // 10 minutes
+    setInterval(fetchWaterLevel, 1800000); // 30 minutes
+    setInterval(fetchRainData, 1800000); // 30 minutes
 </script>
 </body>
 </html>
