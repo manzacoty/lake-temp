@@ -251,6 +251,7 @@
             }
 
             const fullLevel = 435.50; // Base full level
+            const deadPool = 388.00;  // Dead pool elevation
 
             if (!html) {
                 console.warn('Could not load reservoir data from any proxy; trying USGS fallback');
@@ -261,8 +262,8 @@
                     if (point?.value) {
                         const waterLevel = parseFloat(point.value).toFixed(2);
                         document.getElementById('water-level').innerText = `${waterLevel} ft`;
-                        const percentFull = ((waterLevel / fullLevel) * 100).toFixed(1);
-                        document.getElementById('percent-full').innerText = `${percentFull}%`;
+                        const estPercentFull = (((waterLevel - deadPool) / (fullLevel - deadPool)) * 100).toFixed(1);
+                        document.getElementById('percent-full').innerText = `~${estPercentFull}%`;
                         return;
                     }
                 }
@@ -273,23 +274,37 @@
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
 
+                // Extract exact Water Level from the "Most recent" row
                 const recentRow = Array.from(doc.querySelectorAll('tbody tr')).find(row => row.textContent.includes('Most recent'));
                 if (recentRow) {
                     const cells = recentRow.querySelectorAll('td');
                     if (cells.length >= 3) {
                         const waterLevel = cells[2].textContent.trim();
                         document.getElementById('water-level').innerText = `${waterLevel} ft`;
-                        const percentFull = ((parseFloat(waterLevel) / fullLevel) * 100).toFixed(1);
+                    }
+                }
+
+                // Extract exact pre-calculated Percent Full from the "Today" historical table row
+                const todayRow = Array.from(doc.querySelectorAll('tbody tr')).find(row => row.textContent.includes('Today'));
+                if (todayRow) {
+                    const cells = todayRow.querySelectorAll('td');
+                    if (cells.length >= 3) {
+                        const percentFull = cells[2].textContent.trim();
                         document.getElementById('percent-full').innerText = `${percentFull}%`;
                     }
                 }
             } catch (e) {
                 console.warn('Reservoir HTML parse failed, falling back to regex', e);
+                
                 const levelMatch = html.match(/<tr>\s*<td>\s*Most recent\s*<\/td>\s*<td>\s*[^<]+<\/td>\s*<td>\s*([0-9]+\.[0-9]+)/);
                 if (levelMatch) {
                     const waterLevel = levelMatch[1];
                     document.getElementById('water-level').innerText = `${waterLevel} ft`;
-                    const percentFull = ((parseFloat(waterLevel) / fullLevel) * 100).toFixed(1);
+                }
+
+                const percentMatch = html.match(/<tr>\s*<td>\s*Today\s*<\/td>\s*<td>\s*[^<]+<\/td>\s*<td>\s*([0-9]+\.[0-9]+)/);
+                if (percentMatch) {
+                    const percentFull = percentMatch[1];
                     document.getElementById('percent-full').innerText = `${percentFull}%`;
                 }
             }
