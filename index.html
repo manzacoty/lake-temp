@@ -264,37 +264,28 @@
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
 
-                // 1. Extract header percent (e.g. "Lake Ray Hubbard: 89.3% full")
-                const titleMatch = html.match(/Lake Ray Hubbard:\s*([0-9]+\.[0-9]+)%\s*full/i);
-                if (titleMatch) {
-                    document.getElementById('percent-full').innerText = `${titleMatch[1]}%`;
-                }
-
-                // 2. Extract Water Level & Height Above/Below Conservation Pool
+                // 1. Extract Water Level & Height Above/Below Conservation Pool from the "Most recent" row
                 const recentRow = Array.from(doc.querySelectorAll('tr')).find(row => row.textContent.includes('Most recent'));
                 if (recentRow) {
                     const cells = recentRow.querySelectorAll('td');
-                    if (cells.length >= 4) {
-                        const waterLevel = cells[1].textContent.trim();
-                        const offset = cells[3].textContent.trim();
+                    // Corrected indices based on TWDB HTML structure
+                    if (cells.length >= 5) {
+                        const waterLevel = cells[2].textContent.trim();
+                        const offset = cells[4].textContent.trim();
                         document.getElementById('water-level').innerText = `${waterLevel} ft`;
                         document.getElementById('pool-offset').innerText = `${offset} ft`;
-                        return;
                     }
                 }
 
-                // 3. Fallback to Historical row if Most Recent row format differs
+                // 2. Extract Exact Percent Full from the "Today" historical table row
                 const todayRow = Array.from(doc.querySelectorAll('tr')).find(row => row.textContent.includes('Today'));
                 if (todayRow) {
                     const cells = todayRow.querySelectorAll('td');
+                    // Corrected index based on TWDB HTML structure
                     if (cells.length >= 3) {
-                        const percent = cells[1].textContent.trim();
-                        const waterLevel = cells[2].textContent.trim();
+                        const percent = cells[2].textContent.trim();
                         document.getElementById('percent-full').innerText = `${percent}%`;
-                        document.getElementById('water-level').innerText = `${waterLevel} ft`;
-                        const offsetVal = (parseFloat(waterLevel) - fullConservationLevel).toFixed(2);
-                        document.getElementById('pool-offset').innerText = `${offsetVal > 0 ? '+' : ''}${offsetVal} ft`;
-                        return;
+                        return; // Exit here if successful
                     }
                 }
             }
