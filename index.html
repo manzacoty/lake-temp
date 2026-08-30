@@ -25,7 +25,7 @@
         }
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; margin-left: auto; margin-right: auto; max-width: 400px; }
         .stat-box { background: #0d1117; padding: 1rem; border-radius: 8px; border: 1px solid #30363d; }
-        .water-level-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+        .water-level-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem; }
         .water-box { background: #0d1117; padding: 1rem; border-radius: 8px; border: 1px solid #30363d; }
         h1 { font-size: 1rem; color: #8b949e; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
         .temp-main { font-size: 3.5rem; font-weight: bold; color: #3fb950; margin: 0.5rem 0; }
@@ -56,6 +56,9 @@
         .main-content {
             display: flex; flex-direction: column; gap: 1rem; flex: 1;
         }
+        @media (max-width: 700px) {
+            .water-level-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -85,6 +88,10 @@
                         <div class="water-box">
                             <div class="label">MEAN WATER LEVEL</div>
                             <div id="water-level" class="temp-sub">--.- ft</div>
+                        </div>
+                        <div class="water-box">
+                            <div class="label">ABOVE / BELOW POOL</div>
+                            <div id="pool-offset" class="temp-sub">--.- ft</div>
                         </div>
                         <div class="water-box">
                             <div class="label">PERCENT FULL</div>
@@ -230,18 +237,21 @@
     }
 
     async function fetchWaterLevel() {
+        const fullConservationLevel = 435.50; // Conservation pool elevation in ft
+
         try {
             const targetUrl = 'https://waterdatafortexas.org/reservoirs/individual/ray-hubbard';
             const proxies = [
                 'https://api.allorigins.win/raw?url=',
                 'https://api.codetabs.com/v1/proxy?quest=',
-                'https://thingproxy.freeboard.io/fetch/'
+                'https://corsproxy.io/?'
             ];
             let html = null;
 
             for (const proxy of proxies) {
                 try {
-                    const response = await fetch(proxy + encodeURIComponent(targetUrl));
+                    const fetchUrl = proxy.endsWith('?') ? `${proxy}${encodeURIComponent(targetUrl)}` : `${proxy}${encodeURIComponent(targetUrl)}`;
+                    const response = await fetch(fetchUrl);
                     if (!response.ok) continue;
                     html = await response.text();
                     if (html && html.includes('Lake Ray Hubbard')) break;
@@ -250,67 +260,72 @@
                 }
             }
 
-            const fullLevel = 435.50; // Base full level
-            const deadPool = 388.00;  // Dead pool elevation
-
-            if (!html) {
-                console.warn('Could not load reservoir data from any proxy; trying USGS fallback');
-                const usgsRes = await fetch('https://waterservices.usgs.gov/nwis/iv/?format=json&sites=08061550&parameterCd=62614');
-                if (usgsRes.ok) {
-                    const usgsData = await usgsRes.json();
-                    const point = usgsData?.value?.timeSeries?.[0]?.values?.[0]?.value?.[0];
-                    if (point?.value) {
-                        const waterLevel = parseFloat(point.value).toFixed(2);
-                        document.getElementById('water-level').innerText = `${waterLevel} ft`;
-                        const estPercentFull = (((waterLevel - deadPool) / (fullLevel - deadPool)) * 100).toFixed(1);
-                        document.getElementById('percent-full').innerText = `~${estPercentFull}%`;
-                        return;
-                    }
-                }
-                throw new Error('Could not load reservoir data from any proxy or USGS fallback');
-            }
-
-            try {
+            if (html) {
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
 
-                // Extract exact Water Level from the "Most recent" row
-                const recentRow = Array.from(doc.querySelectorAll('tbody tr')).find(row => row.textContent.includes('Most recent'));
+                // 1. Extract header percent (e.g. "Lake Ray Hubbard: 89.3% full")
+                const titleMatch = html.match(/Lake Ray Hubbard:\s*([0-9]+\.[0-9]+)%\s*full/i);
+                if (titleMatch) {
+                    document.getElementById('percent-full').innerText = `${titleMatch[1]}%`;
+                }
+
+                // 2. Extract Water Level & Height Above/Below Conservation Pool
+                const recentRow = Array.from(doc.querySelectorAll('tr')).find(row => row.textContent.includes('Most recent'));
                 if (recentRow) {
                     const cells = recentRow.querySelectorAll('td');
-                    if (cells.length >= 3) {
-                        const waterLevel = cells[2].textContent.trim();
+                    if (cells.length >= 4) {
+                        const waterLevel = cells[1].textContent.trim();
+                        const offset = cells[3].textContent.trim();
                         document.getElementById('water-level').innerText = `${waterLevel} ft`;
+                        document.getElementById('pool-offset').innerText = `${offset} ft`;
+                        return;
                     }
                 }
 
-                // Extract exact pre-calculated Percent Full from the "Today" historical table row
-                const todayRow = Array.from(doc.querySelectorAll('tbody tr')).find(row => row.textContent.includes('Today'));
+                // 3. Fallback to Historical row if Most Recent row format differs
+                const todayRow = Array.from(doc.querySelectorAll('tr')).find(row => row.textContent.includes('Today'));
                 if (todayRow) {
                     const cells = todayRow.querySelectorAll('td');
                     if (cells.length >= 3) {
-                        const percentFull = cells[2].textContent.trim();
-                        document.getElementById('percent-full').innerText = `${percentFull}%`;
+                        const percent = cells[1].textContent.trim();
+                        const waterLevel = cells[2].textContent.trim();
+                        document.getElementById('percent-full').innerText = `${percent}%`;
+                        document.getElementById('water-level').innerText = `${waterLevel} ft`;
+                        const offsetVal = (parseFloat(waterLevel) - fullConservationLevel).toFixed(2);
+                        document.getElementById('pool-offset').innerText = `${offsetVal > 0 ? '+' : ''}${offsetVal} ft`;
+                        return;
                     }
                 }
-            } catch (e) {
-                console.warn('Reservoir HTML parse failed, falling back to regex', e);
-                
-                const levelMatch = html.match(/<tr>\s*<td>\s*Most recent\s*<\/td>\s*<td>\s*[^<]+<\/td>\s*<td>\s*([0-9]+\.[0-9]+)/);
-                if (levelMatch) {
-                    const waterLevel = levelMatch[1];
-                    document.getElementById('water-level').innerText = `${waterLevel} ft`;
-                }
+            }
 
-                const percentMatch = html.match(/<tr>\s*<td>\s*Today\s*<\/td>\s*<td>\s*[^<]+<\/td>\s*<td>\s*([0-9]+\.[0-9]+)/);
-                if (percentMatch) {
-                    const percentFull = percentMatch[1];
-                    document.getElementById('percent-full').innerText = `${percentFull}%`;
+            // Fallback: If scraping TWDB proxies fails, fetch USGS real-time gauge
+            console.warn('Scraping failed; switching to USGS gauge fallback');
+            const usgsRes = await fetch('https://waterservices.usgs.gov/nwis/iv/?format=json&sites=08061550&parameterCd=62614');
+            if (usgsRes.ok) {
+                const usgsData = await usgsRes.json();
+                const point = usgsData?.value?.timeSeries?.[0]?.values?.[0]?.value?.[0];
+                if (point?.value) {
+                    const waterLevel = parseFloat(point.value).toFixed(2);
+                    document.getElementById('water-level').innerText = `${waterLevel} ft`;
+                    
+                    const offsetVal = (waterLevel - fullConservationLevel).toFixed(2);
+                    document.getElementById('pool-offset').innerText = `${offsetVal > 0 ? '+' : ''}${offsetVal} ft`;
+                    
+                    // Approximate conversion using elevation-capacity curve for Ray Hubbard
+                    // (435.50 ft = 439,559 ac-ft; 433.20 ft ≈ 393,000 ac-ft ≈ 89.4%)
+                    const estAcFt = Math.max(0, 439559 - ((fullConservationLevel - waterLevel) * 20100));
+                    const estPct = ((estAcFt / 439559) * 100).toFixed(1);
+                    document.getElementById('percent-full').innerText = `${estPct}%`;
+                    return;
                 }
             }
+            throw new Error('All water level endpoints unavailable');
+
         } catch (e) {
             console.error("Water level fetch failed:", e);
             document.getElementById('water-level').innerText = "N/A";
+            document.getElementById('pool-offset').innerText = "N/A";
             document.getElementById('percent-full').innerText = "N/A";
         }
     }
