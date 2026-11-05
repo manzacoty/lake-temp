@@ -143,16 +143,40 @@
     const publicUrl = 'https://io.adafruit.com/api/v2/Manzacoty/feeds/dock-temperature/data.json';
     let tempChart;
 
+    // TEMPORARY PROBE CORRECTION
+    // The dock probe started reading ~10.35°F high after a restart on
+    // Wed Nov 4, 2026 ~3:25 PM CST. Readings at/after OFFSET_START get
+    // TEMP_OFFSET added; older readings are left alone so history stays correct.
+    // Once the probe is fixed, set TEMP_OFFSET to 0 and OFFSET_END to the
+    // fix time (or delete this block and the correctTemp() calls).
+    const TEMP_OFFSET  = -10.35;
+    const OFFSET_START = new Date('2026-11-04T21:20:00Z'); // 3:20 PM CST
+    const OFFSET_END   = null; // e.g. new Date('2026-11-12T18:00:00Z') once repaired
+
+    // Returns a corrected °F number, or NaN for bad readings (nan, 0, blank)
+    function correctTemp(d) {
+        const v = parseFloat(d.value);
+        if (!Number.isFinite(v) || v <= 0) return NaN;
+        const t = new Date(d.created_at);
+        const inWindow = t >= OFFSET_START && (!OFFSET_END || t < OFFSET_END);
+        return inWindow ? v + TEMP_OFFSET : v;
+    }
+
     async function fetchData() {
         try {
             const response = await fetch(`${publicUrl}?limit=48`);
             if (!response.ok) throw new Error('Data fetch failed');
 
-            const recentData = await response.json();
+            const rawRecent = await response.json();
+            // Drop bad readings and apply the correction
+            const recentData = rawRecent
+                .map(d => ({ ...d, temp: correctTemp(d) }))
+                .filter(d => Number.isFinite(d.temp));
             if (!recentData.length) return;
 
             const latest = recentData[0];
-            const currentTemp = parseFloat(latest.value).toFixed(1);
+            const currentTempNum = latest.temp;
+            const currentTemp = currentTempNum.toFixed(1);
             document.getElementById('temp-display').innerText = `${currentTemp}°F`;
             document.getElementById('last-update').innerText = `Last Update: ${new Date(latest.created_at).toLocaleString()}`;
 
@@ -166,16 +190,18 @@
 
             // Fetching data for the last 5 days
             const rangeRes = await fetch(`${publicUrl}?start_time=${startDate.toISOString()}&end_time=${endDate.toISOString()}`);
-            const fiveDayData = await rangeRes.json();
-             
-            if (fiveDayData.length > 0) {
-                const sum = fiveDayData.reduce((acc, d) => acc + parseFloat(d.value), 0);
-                const avg = (sum / fiveDayData.length).toFixed(1);
-                document.getElementById('yesterday-avg').innerText = `${avg}°F`;
-                const diff = (currentTemp - avg).toFixed(1);
+            const fiveDayTemps = (await rangeRes.json())
+                .map(correctTemp)
+                .filter(Number.isFinite);
+
+            if (fiveDayTemps.length > 0) {
+                const avgNum = fiveDayTemps.reduce((acc, v) => acc + v, 0) / fiveDayTemps.length;
+                document.getElementById('yesterday-avg').innerText = `${avgNum.toFixed(1)}°F`;
+                const diffNum = currentTempNum - avgNum;
+                const diff = diffNum.toFixed(1);
                 const trendEl = document.getElementById('trend-val');
-                trendEl.innerText = diff > 0 ? `+${diff}°` : `${diff}°`;
-                trendEl.style.color = diff < 0 ? "#f85149" : "#3fb950";
+                trendEl.innerText = diffNum > 0 ? `+${diff}°` : `${diff}°`;
+                trendEl.style.color = diffNum < 0 ? "#f85149" : "#3fb950";
             }
 
             // Display hourly data for the past 12 hours
@@ -183,7 +209,7 @@
             const hourlyData = recentData.filter(d => new Date(d.created_at) >= twelveHoursAgo);
              
             const labels = hourlyData.slice().reverse().map(d => new Date(d.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-            const values = hourlyData.slice().reverse().map(d => parseFloat(d.value));
+            const values = hourlyData.slice().reverse().map(d => d.temp);
 
             if (tempChart) {
                 tempChart.data.labels = labels;
